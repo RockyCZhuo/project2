@@ -1,0 +1,16 @@
+body {
+  background: #f9f2d5;
+  cursor: url("./files/pkball01.png")， auto;
+}
+
+h1{
+  text-align: center;
+}
+
+#canvasDiv
+{
+  display: flex;
+
+  /* This centers our sketch horizontally. */
+  justify-content: center;
+}
