@@ -1,8 +1,8 @@
-let circleURL ="url('./files/circle.png'),auto";
+let circleURL = "url('./files/circle.png'),auto";
 let crossURL = "url('./files/cross.png'),auto";
 //open and connect socket
 let socket = io();
-let r,g,b;
+let r, g, b;
 let w = 600;
 let h = 600;
 const slots = [0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -31,75 +31,93 @@ const pawnYLoc = [
 let isCircle = true;
 let hasWinnerLine = false;
 let currentTime;
+let localPlayerType;
+let clientMouseInfo;
 
-socket.on("connect", ()=> {
-    console.log("Connected");
-    
-  }) 
+socket.on("connect", () => {
+  console.log("Connected");
+})
 
-  function setup(){
-    var canvas = createCanvas(w, h);
-    //only when mouse is within board area, check mouse position when mouse released
-    canvas.mouseReleased(checkSlot);
-    canvas.parent('canvasDiv');
-    drawBoard();
-    drawPawn();
-    //background("#ff");
-    r = random(0,255);
-    g = random(0,255);
-    b = random(0,255);
-    let mousePos = {
-      x: mouseX,
-      y: mouseY,
-      colorR: r,
-      colorG: g,
-      colorB: b,
-      id: socket.id
+function setup() {
+  var canvas = createCanvas(w, h);
+  //only when mouse is within board area, check mouse position when mouse released
+  canvas.parent('canvasDiv');
+  drawBoard();
+  drawPawn();
+  //background("#ff");
+  r = random(0, 255);
+  g = random(0, 255);
+  b = random(0, 255);
+
+  clientMouseInfo = {
+    x: mouseX,
+    y: mouseY,
+    colorR: r,
+    colorG: g,
+    colorB: b,
+    id: socket.id,
+    type: localPlayerType,
+    slot: -1
   }
+  console.log(clientMouseInfo);
+  //changeCursor("circle");
 
-    changeCursor("circle");
+  socket.on("mouseDataServer", (data) => {
+    //receives msg from server
+    drawPos(data);
+  })
 
-    socket.on("mouseDataServer", (data)=> {
-    
-        //drawPos(data);
-      })
-  }
+  socket.on("idTypeMsg", (typeMsg) => {
+    //receives msg from server
+    if (typeMsg.id == socket.id) {
+      localPlayerType = typeMsg.type;
+      changeCursor(localPlayerType);
 
-  function changeCursor(type){
-    if(type=="circle"){
-      document.body.style.cursor = circleURL;
-    }else if(type=="cross"){
-      document.body.style.cursor = crossURL;
     }
+  })
+}
+
+function changeCursor(type) {
+  if (type == "circle") {
+    document.body.style.cursor = circleURL;
+    console.log("Team Circle!");
+  } else if (type == "cross") {
+    document.body.style.cursor = crossURL;
+    console.log("Team Cross!");
+  }
+}
+
+
+function draw() {
+  showTimer();
+  //drawBoard();
+  //drawPawn();
+}
+
+
+function mouseMoved() {
+  let tempSlot = getSlotwithXY();
+  clientMouseInfo = {
+    x: mouseX,
+    y: mouseY,
+    colorR: r,
+    colorG: g,
+    colorB: b,
+    id: socket.id,
+    type: localPlayerType,
+    slot: tempSlot
   }
 
-
-  function draw(){
-    showTimer();
-  }
-
-
-  function mouseMoved(){
-    mousePos = {
-        x: mouseX,
-        y: mouseY,
-        colorR: r,
-        colorG: g,
-        colorB: b,
-        id: socket.id
-    }
-
-    //send data to server
-    socket.emit("mouseData",mousePos);
-  }
+  //send data to server
+  socket.emit("mouseData", clientMouseInfo);
+}
 
 
-  function drawPos(data) {
-    let c = color(data.colorR,data.colorG,data.colorB);
-    fill(c);
-    ellipse(data.x, data.y, 10,10);
-    console.log(data.id);
-  }
+function drawPos(data) {
+  let c = color(data.colorR, data.colorG, data.colorB);
+  fill(c);
+  ellipse(data.x, data.y, 10, 10);
+}
 
 
 function drawBoard() {
@@ -145,9 +163,28 @@ function drawPawn() {
 }
 
 
-function highlightSlot() {}
 
 function checkSlot() {
+  let tempCurSlot = getSlotwithXY();
+  if (slots[tempCurSlot] == 0) {
+    //slot can be placed a new pawn
+    if (isCircle == true) {
+      slots[tempCurSlot] = 1;
+    } else {
+      slots[tempCurSlot] = 2;
+    }
+    drawBoard();
+    drawPawn();
+    if (hasWinnerLine == false) {
+      checkResult(isCircle);
+    }
+    //circle and cross take turn
+    isCircle = !isCircle;
+  }
+
+}
+
+function getSlotwithXY() {
   let row, col, targetSlot;
   if (mouseX < w / 3) {
     col = 0;
@@ -165,26 +202,6 @@ function checkSlot() {
   }
   //calculate slots number based on mouseX and mouseY,
   targetSlot = row * 3 + col;
-  if (slots[targetSlot] == 0) {
-    //slot can be placed a new pawn
-    if (isCircle == true) {
-      slots[targetSlot] = 1;
-    } else {
-      slots[targetSlot] = 2;
-    }
-    drawBoard();
-    drawPawn();
-    if (hasWinnerLine == false) {
-      checkResult(isCircle);
-    }
-    //circle and cross take turn
-    isCircle = !isCircle;
-    if(isCircle){
-      changeCursor("circle");
-    }else{
-      changeCursor("cross");
-    }
-  }
   return targetSlot;
 }
 
@@ -217,7 +234,7 @@ function checkResult(pawnIsCircle) {
   } else if (slots.includes(0) == false) {
     //Tie!!!
     console.log("Tie!");
-        restartGame();
+    restartGame();
 
   }
   if (hasWinnerLine) {
@@ -226,7 +243,7 @@ function checkResult(pawnIsCircle) {
       console.log("Circle wins!");
       alert("Circle wins!");
     } else {
-      console.log("Cross wins!");      
+      console.log("Cross wins!");
       alert("Cross wins!");
     }
     restartGame();
@@ -235,17 +252,17 @@ function checkResult(pawnIsCircle) {
 
 function restartGame() {
   hasWinnerLine = false;
-  for (let k = 0;k<9;k++){
+  for (let k = 0; k < 9; k++) {
     slots[k] = 0;
-    
+
   }
   drawBoard();
   drawPawn();
 }
 
 
-function showTimer(){
+function showTimer() {
   currentTime = new Date();
-  var tempTime = currentTime.getHours() + ":"   +  currentTime.getMinutes() + ":" +  currentTime.getSeconds()
-  document.getElementById('playTimer').innerHTML= tempTime;
+  var tempTime = currentTime.getHours() + ":" + currentTime.getMinutes() + ":" + currentTime.getSeconds()
+  document.getElementById('playTimer').innerHTML = tempTime;
 }
