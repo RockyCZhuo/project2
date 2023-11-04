@@ -33,15 +33,26 @@ let hasWinnerLine = false;
 let currentTime;
 let localPlayerType;
 let clientMouseInfo;
+let currentSlot=0;
+let circleTeam = [];
+let crossTeam = [];
+let crossImg,circleImg;
 
 socket.on("connect", () => {
   console.log("Connected");
 })
 
+function preload(){
+  crossImg = loadImage('./files/cross.png');
+  circleImg = loadImage('./files/circle.png');
+
+}
+
+
 function setup() {
   var canvas = createCanvas(w, h);
-  //only when mouse is within board area, check mouse position when mouse released
   canvas.parent('canvasDiv');
+  imageMode(CENTER);
   drawBoard();
   drawPawn();
   //background("#ff");
@@ -64,11 +75,20 @@ function setup() {
 
   socket.on("mouseDataServer", (data) => {
     //receives msg from server
-    drawPos(data);
+    //drawPos(data);
+  })
+
+  socket.on("updateTeamCircle",(circleTeamInfo)=>{
+      //console.log(circleTeamInfo);
+      circleTeam = circleTeamInfo;
+  })
+
+  socket.on("updateTeamCross",(crossTeamInfo)=>{
+      crossTeam = crossTeamInfo;
   })
 
   socket.on("idTypeMsg", (typeMsg) => {
-    //receives msg from server
+    //receives msg from server, set client cursor and team
     if (typeMsg.id == socket.id) {
       localPlayerType = typeMsg.type;
       changeCursor(localPlayerType);
@@ -77,6 +97,8 @@ function setup() {
   })
 }
 
+
+//change the cursor image
 function changeCursor(type) {
   if (type == "circle") {
     document.body.style.cursor = circleURL;
@@ -90,13 +112,36 @@ function changeCursor(type) {
 
 function draw() {
   showTimer();
-  //drawBoard();
-  //drawPawn();
+  drawBoard();
+  drawAllTeams();
 }
 
+function drawAllTeams(){
+  for(i=0;i<circleTeam.length;i++){
+    image(circleImg, circleTeam[i].mouseX, circleTeam[i].mouseY);
+  }
+
+  for(j=0;j<crossTeam.length;j++){
+    image(crossImg, crossTeam[j].mouseX, crossTeam[j].mouseY);
+  }
+
+
+}
 
 function mouseMoved() {
   let tempSlot = getSlotwithXY();
+  if(tempSlot != currentSlot){
+   
+    let refreshSlotInfo = {
+      id:socket.id,
+      type: localPlayerType,
+      newSlot:tempSlot,
+      prevSlot:currentSlot
+    };
+    currentSlot = tempSlot;
+    socket.emit("calculateSlots",refreshSlotInfo);
+    //console.log(refreshSlotInfo);
+  }
   clientMouseInfo = {
     x: mouseX,
     y: mouseY,
@@ -107,8 +152,7 @@ function mouseMoved() {
     type: localPlayerType,
     slot: tempSlot
   }
-
-  //send data to server
+  //send data to server when client moves mouse
   socket.emit("mouseData", clientMouseInfo);
 }
 
@@ -263,6 +307,10 @@ function restartGame() {
 
 function showTimer() {
   currentTime = new Date();
-  var tempTime = currentTime.getHours() + ":" + currentTime.getMinutes() + ":" + currentTime.getSeconds()
+  var tempTime = 10 - currentTime.getSeconds()%10;
+  
+  if(currentTime.getSeconds()%10 == 0){
+    tempTime ="Locking decision!";
+  }
   document.getElementById('playTimer').innerHTML = tempTime;
 }
