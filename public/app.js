@@ -1,3 +1,5 @@
+let circleURL ="url('./files/circle.png'),auto";
+let crossURL = "url('./files/cross.png'),auto";
 //open and connect socket
 let socket = io();
 let r,g,b;
@@ -55,11 +57,20 @@ socket.on("connect", ()=> {
       id: socket.id
   }
 
+    changeCursor("circle");
 
     socket.on("mouseDataServer", (data)=> {
     
         //drawPos(data);
       })
+  }
+
+  function changeCursor(type){
+    if(type=="circle"){
+      document.body.style.cursor = circleURL;
+    }else if(type=="cross"){
+      document.body.style.cursor = crossURL;
+    }
   }
 
 
@@ -168,6 +179,11 @@ function checkSlot() {
     }
     //circle and cross take turn
     isCircle = !isCircle;
+    if(isCircle){
+      changeCursor("circle");
+    }else{
+      changeCursor("cross");
+    }
   }
   return targetSlot;
 }
