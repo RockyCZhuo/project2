@@ -9,6 +9,9 @@ let idType;
 let slotsCircleRecord = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 let slotsCrossRecord = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 let isCircleTurn = true;
+let slots = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+let timerConnectionCounter = 0;
+let hasWinnerLine =false;
 
 //creating the http server 
 let http = require("http");
@@ -16,6 +19,7 @@ let server = http.createServer(app);
 
 //inititalize socket.io
 let io = require("socket.io");
+const { isCryptoKey } = require("util/types");
 io = new io.Server(server);
 
 // Listen for a new connection
@@ -47,13 +51,11 @@ io.sockets.on("connect", (socket) => {
 
   // print number of players for each team
   console.log("[total players]cross:" + crossTeam.length + " circle:" + circleTeam.length);
-  //console.log(crossTeam);
   //send clients their pawn type
   io.sockets.emit("idTypeMsg", idType);
 
   socket.on("mouseData", (data) => {
     //when client is moving mouse, data is received at server
-    //console.log(data);
     if (data.type == "circle") {
       for (i = 0; i < circleTeam.length; i++) {
         if (data.id == circleTeam[i].id) {
@@ -61,7 +63,7 @@ io.sockets.on("connect", (socket) => {
           circleTeam[i].mouseY = data.y;
         }
       }
-      io.sockets.emit("updateTeamCircle",circleTeam);
+      io.sockets.emit("updateTeamCircle", circleTeam);
     } else if (data.type == "cross") {
       for (j = 0; j < crossTeam.length; j++) {
         if (data.id == crossTeam[j].id) {
@@ -69,7 +71,7 @@ io.sockets.on("connect", (socket) => {
           crossTeam[j].mouseY = data.y;
         }
       }
-      io.sockets.emit("updateTeamCross",crossTeam);
+      io.sockets.emit("updateTeamCross", crossTeam);
     }
 
 
@@ -101,33 +103,103 @@ io.sockets.on("connect", (socket) => {
   })
 
 
+  //find out the slot with most votes 
+  //that from the playing team
+  socket.on("voteEnd", () => {
+    let tempHighestSlotNum = -1;
+    let finalHighestSlotNum = -1;
 
-  //in case of disconnection
-  socket.on("disconnect", () => {
-    let indexCircle = -1;
-    let indexCross = -1;
-    //console.log("Disconnection : ", socket.id);
-    //check the disconnected socket ID, remove it from current player list
-    for (i = 0; i < circleTeam.length; i++) {
-      if (circleTeam[i].id == socket.id) {
-        indexCircle = i;
-      }
-    }
-    if (indexCircle == -1) {    //disconnected player is not in team circle
-      for (j = 0; j < crossTeam.length; j++) {     //disconnected player is in team cross
-        if (crossTeam[j].id == socket.id) {
-          indexCross = j;
+    //accumulate when one client's timer is up
+    timerConnectionCounter++;
+    //trigger voteEnd when every client's timer is up
+    if (timerConnectionCounter == (circleTeam.length + crossTeam.length)) {
+      timerConnectionCounter = 0;
+
+      //determine current playing team is...
+      if (isCircleTurn) {
+        console.log("isCircleTurn: "+isCircleTurn);
+        //circle team placing circle!!!
+        //1. slotsCircleRecord把已经被棋子占据的格子改成-1
+        //2. 找出slotsCircleRecord剩余票数最高的格子
+        //3. 选取最多票数的格子，在slots里登记circle
+        //4. 检查胜负情况
+
+        //1. 
+        let tempSlotsCircleRecord = slotsCircleRecord;
+        for (i = 0; i < 9; i++) {
+          if (slots[i] == 1 || slots[i] == 2) {
+            tempSlotsCircleRecord[i] = -1;
+          }
         }
-      }
-      slotsCrossRecord[crossTeam[indexCross].slotNum] -= 1;
-      crossTeam.splice(indexCross, 1);
-    } else {
-      slotsCircleRecord[circleTeam[indexCircle].slotNum] -= 1;
-      circleTeam.splice(indexCircle, 1);
-    }
 
-    console.log("[total players]cross:" + crossTeam.length + " circle:" + circleTeam.length);
+        //2.
+        for (j = 0; j < 9; j++) {
+          if (tempSlotsCircleRecord[j] > tempHighestSlotNum) {
+            tempHighestSlotNum = tempSlotsCircleRecord[j];
+            finalHighestSlotNum = j;
+          }
+        }
+
+        //3.
+        slots[finalHighestSlotNum] = 1;
+        //4.
+        checkResult();
+      } else {
+        console.log("isCircleTurn: "+isCircleTurn);
+        //cross team placing cross!!!
+        let tempSlotsCrossRecord = slotsCrossRecord;
+        for (i = 0; i < 9; i++) {
+          if (slots[i] == 1 || slots[i] == 2) {
+            tempSlotsCrossRecord[i] = -1;
+          }
+        }
+
+        //2.
+        for (j = 0; j < 9; j++) {
+          if (tempSlotsCrossRecord[j] > tempHighestSlotNum) {
+            tempHighestSlotNum = tempSlotsCrossRecord[j];
+            finalHighestSlotNum = j;
+          }
+        }
+
+        //3.
+        slots[finalHighestSlotNum] = 2;
+        //4.
+        checkResult();
+      }
+    }
+    //update slots info to every client
+    io.sockets.emit("updateSlots", slots);
   })
+
+
+
+//in case of disconnection
+socket.on("disconnect", () => {
+  let indexCircle = -1;
+  let indexCross = -1;
+  //console.log("Disconnection : ", socket.id);
+  //check the disconnected socket ID, remove it from current player list
+  for (i = 0; i < circleTeam.length; i++) {
+    if (circleTeam[i].id == socket.id) {
+      indexCircle = i;
+    }
+  }
+  if (indexCircle == -1) {    //disconnected player is not in team circle
+    for (j = 0; j < crossTeam.length; j++) {     //disconnected player is in team cross
+      if (crossTeam[j].id == socket.id) {
+        indexCross = j;
+      }
+    }
+    slotsCrossRecord[crossTeam[indexCross].slotNum] -= 1;
+    crossTeam.splice(indexCross, 1);
+  } else {
+    slotsCircleRecord[circleTeam[indexCircle].slotNum] -= 1;
+    circleTeam.splice(indexCircle, 1);
+  }
+
+  console.log("[total players]cross:" + crossTeam.length + " circle:" + circleTeam.length);
+})
 })
 
 //run the app on port
@@ -135,21 +207,86 @@ server.listen(PORT, () => {
   console.log("server on port ", PORT);
 })
 
+function restartGame(){  
+  isCircleTurn = true;
+  slots = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  timerConnectionCounter = 0;
+  hasWinnerLine =false;
+
+  //tell clients to restart, recollect info
+  io.sockets.emit("restartGameReady");
+
+}
+
+function checkResult(){
+    //4. check the result on the board
+    if (slots[0] == slots[1] && slots[2] == slots[1] && slots[0] != 0) {
+      //first row
+      hasWinnerLine = true;
+    } else if (slots[3] == slots[4] && slots[4] == slots[5] && slots[5] != 0) {
+      //second row
+      hasWinnerLine = true;
+    } else if (slots[6] == slots[7] && slots[6] == slots[8] && slots[8] != 0) {
+      //third row
+      hasWinnerLine = true;
+    } else if (slots[0] == slots[3] && slots[3] == slots[6] && slots[6] != 0) {
+      //first column
+      hasWinnerLine = true;
+    } else if (slots[4] == slots[1] && slots[7] == slots[1] && slots[1] != 0) {
+      //second column
+      hasWinnerLine = true;
+    } else if (slots[2] == slots[5] && slots[2] == slots[8] && slots[2] != 0) {
+      //third column
+      hasWinnerLine = true;
+    } else if (slots[0] == slots[4] && slots[0] == slots[8] && slots[0] != 0) {
+      //right corner dia
+      hasWinnerLine = true;
+    } else if (slots[2] == slots[4] && slots[2] == slots[6] && slots[2] != 0) {
+      //left corner dia
+      hasWinnerLine = true;
+    } 
+
+    //1 has winner
+    //2 tie
+    //3 continue game
+
+    let result="";
+    if (hasWinnerLine) {
+      if (isCircleTurn == true) {
+        console.log("Circle wins!");
+        result = "circle";
+        io.sockets.emit("updateWinCount", result);
+      } else if(isCircleTurn ==false) {
+        console.log("Cross wins!");
+        result = "cross";
+        io.sockets.emit("updateWinCount", result);
+      }
+      restartGame();
+    }else if(slots.includes(0) == false){
+      console.log("Tie!");
+      result = "tie";
+      io.sockets.emit("updateWinCount", result);
+      restartGame();
+    }else{
+      if(isCircleTurn == true){
+        isCircleTurn = false;
+      }else if(isCircleTurn ==false){
+        isCircleTurn = true;
+      }
+    }
+}
 
 
-/*
-1. setting up sockets
-    -√ setting up an http server
-    -√ setting up socket.io
+//1. setting up sockets
+//    -√ setting up an http server
+//    -√ setting up socket.io
 
-2. Ensure that the client can connect to the server via sockets
-    - server recognize the connect
-    - client attempting to connect
+//2. Ensure that the client can connect to the server via sockets
+//    - server recognize the connect
+//    - client attempting to connect
     
-3. client draws and sends to server
+//3. client draws and sends to server
 
-4. server receives and sends to all the clients
+//4. server receives and sends to all the clients
 
-5. Clients rx and draw on their screen
-
-*/
+//5. Clients rx and draw on their screen
