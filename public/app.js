@@ -5,7 +5,7 @@ let socket = io();
 let r, g, b;
 let w = 600;
 let h = 600;
-const slots = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+let slots = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 const pawnXLoc = [
   w / 6,
   w / 2,
@@ -37,16 +37,14 @@ let currentSlot=0;
 let circleTeam = [];
 let crossTeam = [];
 let crossImg,circleImg;
+let isLocking = false;
+let crossWinCount = 0;
+let circleWinCount = 0;
+let tieCount = 0;
 
 socket.on("connect", () => {
   console.log("Connected");
 })
-
-function preload(){
-  crossImg = loadImage('./files/cross.png');
-  circleImg = loadImage('./files/circle.png');
-
-}
 
 
 function setup() {
@@ -55,6 +53,8 @@ function setup() {
   imageMode(CENTER);
   drawBoard();
   drawPawn();
+  crossImg = loadImage('./files/cross.png');
+  circleImg = loadImage('./files/circle.png');
   //background("#ff");
   r = random(0, 255);
   g = random(0, 255);
@@ -95,16 +95,35 @@ function setup() {
 
     }
   })
+
+  socket.on("updateWinCount",(result)=>{
+    if(result == "circle"){
+      circleWinCount++;
+    }else if(result == "circle"){
+      crossWinCount++;
+    }if(result == "tie"){
+      tieCount++;
+    }
+  })
+
+  socket.on("updateSlots",(data)=>{
+    slots = data;
+    console.log(slots);
+  })
+
+  socket.on("restartGameReady",()=>{
+    mouseMoved();
+  })
 }
 
 
 //change the cursor image
 function changeCursor(type) {
   if (type == "circle") {
-    document.body.style.cursor = circleURL;
+    //document.body.style.cursor = circleURL;
     console.log("Team Circle!");
   } else if (type == "cross") {
-    document.body.style.cursor = crossURL;
+    //document.body.style.cursor = crossURL;
     console.log("Team Cross!");
   }
 }
@@ -113,12 +132,17 @@ function changeCursor(type) {
 function draw() {
   showTimer();
   drawBoard();
+  drawPawn();
   drawAllTeams();
 }
 
 function drawAllTeams(){
   for(i=0;i<circleTeam.length;i++){
-    image(circleImg, circleTeam[i].mouseX, circleTeam[i].mouseY);
+    if(circleTeam[i].id = socket.id){
+      image(circleImg, circleTeam[i].mouseX, circleTeam[i].mouseY);
+    }else{
+      image(circleImg, circleTeam[i].mouseX, circleTeam[i].mouseY);
+    }
   }
 
   for(j=0;j<crossTeam.length;j++){
@@ -140,7 +164,6 @@ function mouseMoved() {
     };
     currentSlot = tempSlot;
     socket.emit("calculateSlots",refreshSlotInfo);
-    //console.log(refreshSlotInfo);
   }
   clientMouseInfo = {
     x: mouseX,
@@ -208,26 +231,6 @@ function drawPawn() {
 
 
 
-function checkSlot() {
-  let tempCurSlot = getSlotwithXY();
-  if (slots[tempCurSlot] == 0) {
-    //slot can be placed a new pawn
-    if (isCircle == true) {
-      slots[tempCurSlot] = 1;
-    } else {
-      slots[tempCurSlot] = 2;
-    }
-    drawBoard();
-    drawPawn();
-    if (hasWinnerLine == false) {
-      checkResult(isCircle);
-    }
-    //circle and cross take turn
-    isCircle = !isCircle;
-  }
-
-}
-
 function getSlotwithXY() {
   let row, col, targetSlot;
   if (mouseX < w / 3) {
@@ -249,68 +252,24 @@ function getSlotwithXY() {
   return targetSlot;
 }
 
-function checkResult(pawnIsCircle) {
-  //list all possibilities
-  if (slots[0] == slots[1] && slots[2] == slots[1] && slots[0] != 0) {
-    //first row
-    hasWinnerLine = true;
-  } else if (slots[3] == slots[4] && slots[4] == slots[5] && slots[5] != 0) {
-    //second row
-    hasWinnerLine = true;
-  } else if (slots[6] == slots[7] && slots[6] == slots[8] && slots[8] != 0) {
-    //third row
-    hasWinnerLine = true;
-  } else if (slots[0] == slots[3] && slots[3] == slots[6] && slots[6] != 0) {
-    //first column
-    hasWinnerLine = true;
-  } else if (slots[4] == slots[1] && slots[7] == slots[1] && slots[1] != 0) {
-    //second column
-    hasWinnerLine = true;
-  } else if (slots[2] == slots[5] && slots[2] == slots[8] && slots[2] != 0) {
-    //third column
-    hasWinnerLine = true;
-  } else if (slots[0] == slots[4] && slots[0] == slots[8] && slots[0] != 0) {
-    //right corner dia
-    hasWinnerLine = true;
-  } else if (slots[2] == slots[4] && slots[2] == slots[6] && slots[2] != 0) {
-    //left corner dia
-    hasWinnerLine = true;
-  } else if (slots.includes(0) == false) {
-    //Tie!!!
-    console.log("Tie!");
-    restartGame();
-
-  }
-  if (hasWinnerLine) {
-    drawBoard();
-    if (pawnIsCircle) {
-      console.log("Circle wins!");
-      alert("Circle wins!");
-    } else {
-      console.log("Cross wins!");
-      alert("Cross wins!");
-    }
-    restartGame();
-  }
-}
-
-function restartGame() {
-  hasWinnerLine = false;
-  for (let k = 0; k < 9; k++) {
-    slots[k] = 0;
-
-  }
-  drawBoard();
-  drawPawn();
-}
 
 
 function showTimer() {
   currentTime = new Date();
   var tempTime = 10 - currentTime.getSeconds()%10;
-  
+  let tempWinCount = "Circle Wins:"+circleWinCount+", Cross Wins:"+ crossWinCount+", Ties: "+tieCount;
+
   if(currentTime.getSeconds()%10 == 0){
     tempTime ="Locking decision!";
+    if(isLocking == false){
+      isLocking = true;
+      //send to server to end vote for this round
+      socket.emit("voteEnd",clientMouseInfo);
+      //code
+    }
+  }else{
+    isLocking = false;
   }
   document.getElementById('playTimer').innerHTML = tempTime;
+  document.getElementById('winCount').innerHTML = tempWinCount;
 }
