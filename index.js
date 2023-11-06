@@ -198,7 +198,8 @@ socket.on("disconnect", () => {
     slotsCircleRecord[circleTeam[indexCircle].slotNum] -= 1;
     circleTeam.splice(indexCircle, 1);
   }
-
+  io.sockets.emit("updateTeamCircle", circleTeam);
+  io.sockets.emit("updateTeamCross", crossTeam);
   console.log("[total players]cross:" + crossTeam.length + " circle:" + circleTeam.length);
 })
 })
