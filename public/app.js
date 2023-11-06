@@ -46,7 +46,6 @@ socket.on("connect", () => {
   console.log("Connected");
 })
 
-
 function setup() {
   var canvas = createCanvas(w, h);
   canvas.parent('canvasDiv');
@@ -148,8 +147,10 @@ function drawAllTeams(){
   for(j=0;j<crossTeam.length;j++){
     image(crossImg, crossTeam[j].mouseX, crossTeam[j].mouseY);
   }
+}
 
-
+function mouseClicked(){
+  mouseMoved();
 }
 
 function mouseMoved() {
