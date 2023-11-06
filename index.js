@@ -12,6 +12,8 @@ let isCircleTurn = true;
 let slots = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 let timerConnectionCounter = 0;
 let hasWinnerLine =false;
+let lastCheckSecond=-1;  //to help do the vote check every 10 secs, init as -1
+
 
 //creating the http server 
 let http = require("http");
@@ -19,7 +21,6 @@ let server = http.createServer(app);
 
 //inititalize socket.io
 let io = require("socket.io");
-//const { isCryptoKey } = require("util/types");
 io = new io.Server(server);
 
 // Listen for a new connection
@@ -105,16 +106,15 @@ io.sockets.on("connect", (socket) => {
 
   //find out the slot with most votes 
   //that from the playing team
-  socket.on("voteEnd", () => {
-    let tempHighestSlotNum = -1;
-    let finalHighestSlotNum = -1;
+  socket.on("voteEnd", (tempTime) => {
+    console.log("tempTime:"+ tempTime);
+    console.log("lastCheckTime: "+lastCheckSecond);
 
-    //accumulate when one client's timer is up
-    timerConnectionCounter++;
     //trigger voteEnd when every client's timer is up
-    if (timerConnectionCounter == (circleTeam.length + crossTeam.length)) {
-      timerConnectionCounter = 0;
-
+    if (tempTime != lastCheckSecond) {
+      let tempHighestSlotNum = -1;
+      let finalHighestSlotNum = -1;
+      lastCheckSecond = tempTime;
       //determine current playing team is...
       if (isCircleTurn) {
         console.log("isCircleTurn: "+isCircleTurn);
@@ -167,9 +167,10 @@ io.sockets.on("connect", (socket) => {
         //4.
         checkResult();
       }
-    }
+
     //update slots info to every client
     io.sockets.emit("updateSlots", slots);
+  }
   })
 
 
