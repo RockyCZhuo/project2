@@ -99,7 +99,7 @@ function setup() {
   socket.on("updateWinCount",(result)=>{
     if(result == "circle"){
       circleWinCount++;
-    }else if(result == "circle"){
+    }else if(result == "cross"){
       crossWinCount++;
     }if(result == "tie"){
       tieCount++;
@@ -258,13 +258,14 @@ function showTimer() {
   currentTime = new Date();
   var tempTime = 10 - currentTime.getSeconds()%10;
   let tempWinCount = "Circle Wins:"+circleWinCount+", Cross Wins:"+ crossWinCount+", Ties: "+tieCount;
-
-  if(currentTime.getSeconds()%10 == 0){
+let tempPlayerNum = "Circle players: "+circleTeam.length+"; Cross Players: "+ crossTeam.length;
+tempSec = currentTime.getSeconds();  
+if(tempSec%10 == 0){
     tempTime ="Locking decision!";
     if(isLocking == false){
       isLocking = true;
       //send to server to end vote for this round
-      socket.emit("voteEnd",clientMouseInfo);
+      socket.emit("voteEnd",tempSec);
       //code
     }
   }else{
@@ -272,4 +273,5 @@ function showTimer() {
   }
   document.getElementById('playTimer').innerHTML = tempTime;
   document.getElementById('winCount').innerHTML = tempWinCount;
+  document.getElementById('teamPlayers').innerHTML = tempPlayerNum;
 }
